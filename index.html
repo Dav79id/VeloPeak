@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>VeloPeak Pro - Performance & IA</title>
+    
+    <!-- Manifest pour installation Mobile -->
+    <link id="manifest-link" rel="manifest" href="">
+
+    <!-- Bibliothèques distantes -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    
+    <style>
+        :root {
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 20px);
+        }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            background-color: #f8fafc;
+            margin: 0;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        /* Cacher barres de défilement pour un look natif */
+        ::-webkit-scrollbar { display: none; }
+        
+        .tab-content { display: none; opacity: 0; transform: translateY(10px); }
+        .tab-content.active { display: block; opacity: 1; transform: translateY(0); animation: fadeIn 0.4s ease-out forwards; }
+        
+        @keyframes fadeIn { to { opacity: 1; transform: translateY(0); } }
+
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-top: 1px solid rgba(0,0,0,0.05);
+        }
+        
+        .btn-active-scale:active { transform: scale(0.96); }
+    </style>
+</head>
+<body class="text-slate-900">
+
+    <!-- HEADER -->
+    <header class="bg-slate-900 text-white shadow-xl z-30 flex-shrink-0 pt-[var(--safe-top)]">
+        <div class="px-5 py-5 flex justify-between items-center">
+            <div class="flex items-center gap-2.5">
+                <div class="p-1.5 bg-blue-600 rounded-xl shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </div>
+                <h1 class="text-xl font-black tracking-tighter italic uppercase">VELOPEAK <span class="text-blue-400 font-black">PRO</span></h1>
+            </div>
+            <div id="syncIndicator" class="hidden items-center gap-2 text-blue-400 text-[10px] font-bold tracking-widest animate-pulse">
+                <svg class="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                EN COURS...
+            </div>
+        </div>
+    </header>
+
+    <!-- ZONE DE CONTENU SCROLLABLE -->
+    <main id="main-scroll" class="flex-1 overflow-y-auto bg-slate-50 pb-36">
+        
+        <!-- ONGLET 1 : DASHBOARD (Statistiques) -->
+        <div id="tab-dashboard" class="tab-content active p-5 space-y-6">
+            
+            <!-- Carte Statut Principal -->
+            <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100">
+                <div class="flex items-center gap-5">
+                    <div id="statusIcon" class="text-5xl drop-shadow-sm">🚴</div>
+                    <div>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Analyse Banister</p>
+                        <h2 id="statusLabel" class="text-2xl font-black text-slate-800 leading-tight">Optimisation...</h2>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Grille des Métriques -->
+            <div class="grid grid-cols-3 gap-3">
+                <div class="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center">
+                    <span class="text-[9px] font-black text-blue-500 uppercase tracking-wider mb-1">Moteur</span>
+                    <span id="valCTL" class="text-2xl font-black text-slate-800 tracking-tighter">--</span>
+                    <span class="text-[8px] text-slate-400 font-bold">(CTL)</span>
+                </div>
+                <div class="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center">
+                    <span class="text-[9px] font-black text-red-500 uppercase tracking-wider mb-1">Fatigue</span>
+                    <span id="valATL" class="text-2xl font-black text-slate-800 tracking-tighter">--</span>
+                    <span class="text-[8px] text-slate-400 font-bold">(ATL)</span>
+                </div>
+                <div class="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center">
+                    <span class="text-[9px] font-black text-yellow-500 uppercase tracking-wider mb-1">Forme</span>
+                    <span id="valTSB" class="text-2xl font-black text-slate-800 tracking-tighter">--</span>
+                    <span class="text-[8px] text-slate-400 font-bold">(TSB)</span>
+                </div>
+            </div>
+
+            <!-- Graphique -->
+            <div class="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100">
+                <div class="flex justify-between items-center mb-5">
+                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">Évolution (Pic à +14j)</h3>
+                    <div class="flex bg-slate-100 p-1 rounded-xl">
+                        <button class="range-btn px-4 py-1.5 text-[10px] font-bold rounded-lg bg-white shadow-sm text-slate-800 transition-all" data-range="30">1M</button>
+                        <button class="range-btn px-4 py-1.5 text-[10px] font-bold rounded-lg text-slate-500 transition-all" data-range="all">ALL</button>
+                    </div>
+                </div>
+                <div class="relative h-64 w-full">
+                    <canvas id="fitnessChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- ONGLET 2 : COACH -->
+        <div id="tab-coach" class="tab-content p-5 space-y-6">
+            <h2 class="text-3xl font-black text-slate-900 tracking-tight">Coach Virtuel</h2>
+            <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 space-y-6">
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Objectif de séance</label>
+                    <select id="goalSelector" class="w-full bg-slate-50 border-slate-100 rounded-2xl p-4 font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="endurance">🚴‍♂️ Endurance (Volume Z2)</option>
+                        <option value="pma">⚡ Seuil / PMA (Intensité)</option>
+                        <option value="affutage">🚀 Affûtage (Pré-course)</option>
+                    </select>
+                </div>
+                <button id="btnCoach" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black shadow-xl btn-active-scale transition-transform">TROUVER LE JOUR IDÉAL</button>
+            </div>
+            <div id="coachResult" class="hidden"></div>
+        </div>
+
+        <!-- ONGLET 3 : PREDICCTEUR -->
+        <div id="tab-predictor" class="tab-content p-5 space-y-6">
+            <h2 class="text-3xl font-black text-slate-900 tracking-tight">IA Predictor</h2>
+            <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 space-y-5">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Distance (km)</label>
+                        <input type="number" id="predDist" value="80" class="w-full bg-slate-50 rounded-2xl p-4 border-none font-black text-2xl text-slate-800 outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Dénivelé (m)</label>
+                        <input type="number" id="predDeniv" value="1200" class="w-full bg-slate-50 rounded-2xl p-4 border-none font-black text-2xl text-slate-800 outline-none">
+                    </div>
+                </div>
+                <button id="btnPredict" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black shadow-xl btn-active-scale transition-transform">PRÉDIRE MON TEMPS</button>
+            </div>
+            <div id="predResult" class="hidden"></div>
+        </div>
+
+        <!-- ONGLET 4 : REGLAGES -->
+        <div id="tab-settings" class="tab-content p-5 space-y-8">
+            <h2 class="text-3xl font-black text-slate-900 tracking-tight">Réglages</h2>
+            <div class="space-y-4">
+                <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+                    <button id="btnProStrava" class="w-full bg-orange-500 text-white font-black py-4 rounded-2xl shadow-lg mb-4">SYNCHRONISER STRAVA</button>
+                    <div class="bg-slate-50 p-4 rounded-2xl border-2 border-dashed border-slate-200">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Import Manuel .CSV</p>
+                        <input type="file" id="csvFileInput" accept=".csv" class="text-xs w-full"/>
+                    </div>
+                </div>
+                <button id="btnLoadSample" class="w-full py-4 text-slate-400 font-black text-[10px] uppercase tracking-widest bg-slate-100 rounded-2xl">RECHARGER LES DONNÉES DÉMO</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- TAB BAR NAVIGATION -->
+    <nav class="glass-nav fixed bottom-0 w-full flex justify-around items-end pb-[var(--safe-bottom)] z-40">
+        <button class="nav-btn flex-1 py-4 flex flex-col items-center gap-1 text-blue-600 scale-110" data-target="dashboard">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+            <span class="text-[9px] font-black uppercase tracking-tighter">Stats</span>
+        </button>
+        <button class="nav-btn flex-1 py-4 flex flex-col items-center gap-1 text-slate-400" data-target="coach">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+            <span class="text-[9px] font-black uppercase tracking-tighter">Coach</span>
+        </button>
+        <button class="nav-btn flex-1 py-4 flex flex-col items-center gap-1 text-slate-400" data-target="predictor">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span class="text-[9px] font-black uppercase tracking-tighter">IA Chrono</span>
+        </button>
+        <button class="nav-btn flex-1 py-4 flex flex-col items-center gap-1 text-slate-400" data-target="settings">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            <span class="text-[9px] font-black uppercase tracking-tighter">Réglages</span>
+        </button>
+    </nav>
+
+    <script>
+        // CONFIG
+        const CONFIG = { REDIRECT_URI: window.location.origin + window.location.pathname };
+
+        // NAVIGATION
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            const target = document.getElementById('tab-' + tabId);
+            if (target) target.classList.add('active');
+            
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                if(btn.dataset.target === tabId) {
+                    btn.classList.add('text-blue-600', 'scale-110'); btn.classList.remove('text-slate-400');
+                } else {
+                    btn.classList.remove('text-blue-600', 'scale-110'); btn.classList.add('text-slate-400');
+                }
+            });
+            document.getElementById('main-scroll').scrollTop = 0;
+        }
+
+        document.querySelectorAll('.nav-btn').forEach(btn => btn.addEventListener('click', (e) => switchTab(e.currentTarget.dataset.target)));
+
+        // LOGIQUE PERFORMANCE
+        let chartInstance = null;
+        let rideHistory = []; 
+        let globalDailyData = [];
+        let currentChartRange = '30';
+
+        function parseNum(v) { if(!v) return 0; let s = v.toString().replace(',','.'); let n = parseFloat(s); return isNaN(n)?0:n; }
+
+        function processData(activities) {
+            let workoutMap = {}; let minDate = new Date('2099-01-01'); let maxDate = new Date('2000-01-01');
+            rideHistory = []; 
+            const getVal = (o, kws) => { for(let k in o) { for(let kw of kws) { if(k.includes(kw)) return o[k]; } } return null; };
+            
+            let parsed = [];
+            activities.forEach(act => {
+                let n = {}; for(let k in act) { if(k) n[k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"")] = act[k]; }
+                let type = (getVal(n, ['type']) || "").toLowerCase();
+                if(type && !type.includes('ride') && !type.includes('velo') && !type.includes('cycl')) return;
+                let dStr = getVal(n, ['date']); if(!dStr) return;
+                let d = new Date(dStr);
+                if(isNaN(d.getTime())) {
+                    let m = dStr.match(/\b(\d{1,4})[/\.\-](\d{1,2})[/\.\-](\d{1,4})\b/);
+                    if(m) { let p1=parseInt(m[1]), p2=parseInt(m[2]), p3=parseInt(m[3]); if(p1>1000) d=new Date(p1, p2-1, p3); else d=new Date(p3, p2-1, p1); }
+                }
+                if(isNaN(d.getTime())) return;
+                n._d = d; parsed.push(n);
+            });
+
+            parsed.sort((a,b)=>a._d - b._d);
+            parsed.forEach(n => {
+                let dist = parseNum(getVal(n,['distance']));
+                let ele = parseNum(getVal(n,['elevation','denivele']));
+                let hr = parseNum(getVal(n,['heartrate','fcmoyenne']));
+                let time = parseNum(getVal(n,['movingtime','temps']));
+                if(dist>1000 && time>0 && (dist/time)<40) dist/=1000;
+                let tss = parseFloat(getVal(n,['effort','tss','suffer']));
+                if(isNaN(tss) || tss <= 0) tss = (dist*1.3) + (ele*0.04);
+                let dk = n._d.toISOString().split('T')[0];
+                workoutMap[dk] = (workoutMap[dk]||0)+tss;
+                if(n._d < minDate) minDate = n._d; if(n._d > maxDate) maxDate = n._d;
+                if(dist>5 && time>0) rideHistory.push({date:dk, dist, ele, hr, speed:dist/(time/3600), ratio:ele/dist});
+            });
+
+            let daily = []; let ctl = 0, atl = 0;
+            let now = new Date(); now.setHours(0,0,0,0);
+            if(maxDate < now) maxDate = now;
+            let limit = new Date(maxDate); limit.setDate(limit.getDate()+14);
+            let cur = new Date(minDate);
+            while(cur <= limit) {
+                let dk = cur.toISOString().split('T')[0];
+                let tss = workoutMap[dk]||0;
+                ctl += (tss - ctl)/42; atl += (tss - atl)/7;
+                daily.push({date:dk, ctl, atl, tsb:ctl-atl, isFuture:cur > now});
+                rideHistory.filter(r=>r.date===dk).forEach(r=>{r.ctl=ctl; r.tsb=ctl-atl;});
+                cur.setDate(cur.getDate()+1);
+            }
+            return daily;
+        }
+
+        function updateUI(daily) {
+            if(!daily.length) return;
+            globalDailyData = daily;
+            const nowData = daily.filter(d=>!d.isFuture).pop();
+            const tsb = Math.round(nowData.tsb);
+            document.getElementById('valCTL').innerText = Math.round(nowData.ctl);
+            document.getElementById('valATL').innerText = Math.round(nowData.atl);
+            document.getElementById('valTSB').innerText = (tsb>0?'+':'')+tsb;
+            const icon = document.getElementById('statusIcon');
+            const label = document.getElementById('statusLabel');
+            if(tsb < -25) { icon.innerText="🛋️"; label.innerText="Repos requis"; label.className="text-2xl font-black text-red-600"; }
+            else if(tsb < -10) { icon.innerText="📈"; label.innerText="Productif"; label.className="text-2xl font-black text-blue-600"; }
+            else if(tsb < 10) { icon.innerText="✅"; label.innerText="Optimal"; label.className="text-2xl font-black text-green-600"; }
+            else { icon.innerText="🚀"; label.innerText="Affûté (Peak)"; label.className="text-2xl font-black text-yellow-500"; }
+            updateChartDisplay();
+        }
+
+        function updateChartDisplay() {
+            const actual = globalDailyData.filter(d=>!d.isFuture);
+            let disp = globalDailyData;
+            if(currentChartRange !== 'all') disp = globalDailyData.slice(Math.max(0, actual.length - parseInt(currentChartRange)));
+            const relToday = disp.filter(d=>!d.isFuture).length - 1;
+            const fmt = (s) => { let p=s.split('-'); return `${p[2]}/${p[1]}`; };
+            const ctx = document.getElementById('fitnessChart').getContext('2d');
+            if(chartInstance) chartInstance.destroy();
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: disp.map(d=>d.isFuture?fmt(d.date)+'+':fmt(d.date)),
+                    datasets: [
+                        { label:'CTL', data:disp.map(d=>d.ctl), borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,0.1)', fill:true, pointRadius:0, tension:0.4, segment:{borderDash:c=>c.p0DataIndex>=relToday?[5,5]:undefined} },
+                        { label:'ATL', data:disp.map(d=>d.atl), borderColor:'#ef4444', pointRadius:0, tension:0.4, segment:{borderDash:c=>c.p0DataIndex>=relToday?[5,5]:undefined} },
+                        { label:'TSB', data:disp.map(d=>d.tsb), borderColor:'#eab308', pointRadius:0, tension:0.4, segment:{borderDash:c=>c.p0DataIndex>=relToday?[5,5]:undefined} }
+                    ]
+                },
+                options: { 
+                    responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+                    scales:{ x:{ticks:{maxTicksLimit:5, font:{size:9}}}, y:{ticks:{font:{size:9}}} }
+                }
+            });
+        }
+
+        function loadDemo() {
+            const data = []; let d = new Date(); d.setDate(d.getDate()-150);
+            for(let i=0; i<150; i++) {
+                let dow=d.getDay(), tss=0; if(dow===0) tss=125; else if(dow===2) tss=80; else if(dow===4) tss=60; else if(dow===6) tss=95;
+                if(tss>0 && Math.random()>0.15) data.push({date:d.toISOString().split('T')[0], tss, distance:tss*0.65, elevation:tss*10, type:'Ride'});
+                d.setDate(d.getDate()+1);
+            }
+            updateUI(processData(data));
+        }
+
+        document.getElementById('btnLoadSample').addEventListener('click', loadDemo);
+        document.getElementById('csvFileInput').addEventListener('change', (e) => {
+            Papa.parse(e.target.files[0], { header:true, complete: r => updateUI(processData(r.data)) });
+        });
+
+        document.getElementById('btnPredict').addEventListener('click', () => {
+            if(!rideHistory.length) return alert("Données requises.");
+            const d=parseFloat(document.getElementById('predDist').value), e=parseFloat(document.getElementById('predDeniv').value), r=e/d;
+            const now=globalDailyData.filter(d=>!d.isFuture).pop();
+            let scored = rideHistory.map(h => ({...h, s:(Math.abs(h.ratio-r)*6) + (Math.abs(h.dist-d)/d*15) })).sort((a,b)=>a.s-b.s).slice(0,5);
+            let spd = 0; scored.forEach(h => { spd += h.speed * Math.max(0.85, Math.min(1.15, 1+((now.ctl-h.ctl)/300)+((now.tsb-h.tsb)/450))); }); spd /= scored.length;
+            const t = d/spd; const res = document.getElementById('predResult');
+            res.innerHTML = `<div class="bg-blue-600 text-white p-7 rounded-[2rem] text-center shadow-xl"><div class="text-5xl font-black">${Math.floor(t)}h ${Math.round((t-Math.floor(t))*60)}m</div></div>`;
+            res.classList.remove('hidden');
+        });
+
+        document.getElementById('btnCoach').addEventListener('click', () => {
+            if(!globalDailyData.length) return alert("Données requises.");
+            const goal = document.getElementById('goalSelector').value;
+            const nowIdx = globalDailyData.filter(d=>!d.isFuture).length - 1;
+            let targetTsb = (goal === 'pma') ? -5 : (goal === 'affutage' ? 10 : -15);
+            let day = globalDailyData.slice(nowIdx).find(d=>d.tsb >= targetTsb) || globalDailyData.pop();
+            let diff = globalDailyData.indexOf(day) - nowIdx;
+            const res = document.getElementById('coachResult');
+            res.innerHTML = `<div class="bg-slate-900 text-white p-6 rounded-[2rem] shadow-xl"><h4 class="text-2xl font-black mb-1">${diff===0?'Aujourd\'hui':(diff===1?'Demain':'Le '+day.date.split('-')[2]+'/'+day.date.split('-')[1])}</h4><p class="text-xs opacity-60">TSB estimé : ${Math.round(day.tsb)}</p></div>`;
+            res.classList.remove('hidden');
+        });
+
+        document.querySelectorAll('.range-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.range-btn').forEach(b => { b.classList.remove('bg-white', 'shadow-sm', 'text-slate-800'); b.classList.add('text-slate-500'); });
+                e.target.classList.add('bg-white', 'shadow-sm', 'text-slate-800'); e.target.classList.remove('text-slate-500');
+                currentChartRange = e.target.dataset.range;
+                updateChartDisplay();
+            });
+        });
+
+        // INIT : Affiche automatiquement les données et la page d'accueil
+        window.onload = function() {
+            console.log("VeloPeak Pro est bien lancé !");
+            loadDemo();
+            switchTab('dashboard');
+        };
+    </script>
+</body>
+</html>
