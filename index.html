@@ -79,7 +79,7 @@
                 <div class="flex items-center gap-5">
                     <div id="statusIcon" class="text-5xl drop-shadow-sm">🚴</div>
                     <div>
-                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Analyse Banister</p>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Bilan de Forme</p>
                         <h2 id="statusLabel" class="text-2xl font-black text-slate-800 leading-tight">Optimisation...</h2>
                     </div>
                 </div>
@@ -88,7 +88,7 @@
             <!-- Grille des Métriques -->
             <div class="grid grid-cols-3 gap-3">
                 <div class="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center">
-                    <span class="text-[9px] font-black text-blue-500 uppercase tracking-wider mb-1">Moteur</span>
+                    <span class="text-[9px] font-black text-blue-500 uppercase tracking-wider mb-1">Condition</span>
                     <span id="valCTL" class="text-2xl font-black text-slate-800 tracking-tighter">--</span>
                     <span class="text-[8px] text-slate-400 font-bold">(CTL)</span>
                 </div>
@@ -104,13 +104,26 @@
                 </div>
             </div>
 
+            <!-- Explications -->
+            <div class="bg-indigo-50/50 border border-indigo-100 p-5 rounded-3xl text-[10px] text-slate-600 leading-relaxed shadow-sm">
+                <p class="font-bold text-indigo-900 mb-2 text-xs">💡 Comprendre vos données :</p>
+                <ul class="space-y-2">
+                    <li><strong class="text-blue-600 font-black">Condition (CTL) :</strong> L'endurance de base que vous avez construite sur les 6 dernières semaines.</li>
+                    <li><strong class="text-red-500 font-black">Fatigue (ATL) :</strong> La fatigue musculaire accumulée suite à vos entraînements des 7 derniers jours.</li>
+                    <li><strong class="text-yellow-600 font-black">Forme (TSB) :</strong> Votre fraîcheur actuelle (Condition - Fatigue). S'il est positif, vous êtes prêt à performer !</li>
+                </ul>
+            </div>
+
             <!-- Graphique -->
             <div class="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100">
-                <div class="flex justify-between items-center mb-5">
+                <div class="flex flex-col gap-3 mb-5">
                     <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">Évolution (Pic à +14j)</h3>
-                    <div class="flex bg-slate-100 p-1 rounded-xl">
-                        <button class="range-btn px-4 py-1.5 text-[10px] font-bold rounded-lg bg-white shadow-sm text-slate-800 transition-all" data-range="30">1M</button>
-                        <button class="range-btn px-4 py-1.5 text-[10px] font-bold rounded-lg text-slate-500 transition-all" data-range="all">ALL</button>
+                    <div class="flex bg-slate-100 p-1 rounded-xl gap-1 overflow-x-auto">
+                        <button class="range-btn flex-1 px-2 py-1.5 text-[9px] font-bold rounded-lg bg-white shadow-sm text-slate-800 transition-all whitespace-nowrap" data-range="30">1 MOIS</button>
+                        <button class="range-btn flex-1 px-2 py-1.5 text-[9px] font-bold rounded-lg text-slate-500 transition-all whitespace-nowrap" data-range="90">3 MOIS</button>
+                        <button class="range-btn flex-1 px-2 py-1.5 text-[9px] font-bold rounded-lg text-slate-500 transition-all whitespace-nowrap" data-range="180">6 MOIS</button>
+                        <button class="range-btn flex-1 px-2 py-1.5 text-[9px] font-bold rounded-lg text-slate-500 transition-all whitespace-nowrap" data-range="365">1 AN</button>
+                        <button class="range-btn flex-1 px-2 py-1.5 text-[9px] font-bold rounded-lg text-slate-500 transition-all whitespace-nowrap" data-range="all">ALL</button>
                     </div>
                 </div>
                 <div class="relative h-64 w-full">
@@ -298,10 +311,10 @@
             document.getElementById('valTSB').innerText = (tsb>0?'+':'')+tsb;
             const icon = document.getElementById('statusIcon');
             const label = document.getElementById('statusLabel');
-            if(tsb < -25) { icon.innerText="🛋️"; label.innerText="Repos requis"; label.className="text-2xl font-black text-red-600"; }
-            else if(tsb < -10) { icon.innerText="📈"; label.innerText="Productif"; label.className="text-2xl font-black text-blue-600"; }
-            else if(tsb < 10) { icon.innerText="✅"; label.innerText="Optimal"; label.className="text-2xl font-black text-green-600"; }
-            else { icon.innerText="🚀"; label.innerText="Affûté (Peak)"; label.className="text-2xl font-black text-yellow-500"; }
+            if(tsb < -25) { icon.innerText="🛋️"; label.innerText="Repos requis"; label.className="text-2xl font-black text-red-600 leading-tight"; }
+            else if(tsb < -10) { icon.innerText="📈"; label.innerText="Productif"; label.className="text-2xl font-black text-blue-600 leading-tight"; }
+            else if(tsb < 10) { icon.innerText="✅"; label.innerText="Optimal"; label.className="text-2xl font-black text-green-600 leading-tight"; }
+            else { icon.innerText="🚀"; label.innerText="Affûté (Peak)"; label.className="text-2xl font-black text-yellow-500 leading-tight"; }
             updateChartDisplay();
         }
 
@@ -331,8 +344,10 @@
         }
 
         function loadDemo() {
-            const data = []; let d = new Date(); d.setDate(d.getDate()-150);
-            for(let i=0; i<150; i++) {
+            const data = []; let d = new Date(); 
+            // Simulation sur plus d'un an pour permettre de voir le filtre "1 AN" et "ALL"
+            d.setDate(d.getDate()-400); 
+            for(let i=0; i<400; i++) {
                 let dow=d.getDay(), tss=0; if(dow===0) tss=125; else if(dow===2) tss=80; else if(dow===4) tss=60; else if(dow===6) tss=95;
                 if(tss>0 && Math.random()>0.15) data.push({date:d.toISOString().split('T')[0], tss, distance:tss*0.65, elevation:tss*10, type:'Ride'});
                 d.setDate(d.getDate()+1);
