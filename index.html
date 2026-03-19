@@ -77,7 +77,7 @@
             <!-- Carte Statut Principal -->
             <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100">
                 <div class="flex items-center gap-5">
-                    <div id="statusIcon" class="text-5xl drop-shadow-sm">🚴</div>
+                    <div id="statusIcon" class="text-5xl drop-shadow-sm inline-block" style="transform: scaleX(-1);">🚴</div>
                     <div>
                         <p class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Bilan de Forme</p>
                         <h2 id="statusLabel" class="text-2xl font-black text-slate-800 leading-tight">Optimisation...</h2>
@@ -311,10 +311,10 @@
             document.getElementById('valTSB').innerText = (tsb>0?'+':'')+tsb;
             const icon = document.getElementById('statusIcon');
             const label = document.getElementById('statusLabel');
-            if(tsb < -25) { icon.innerText="🛋️"; label.innerText="Repos requis"; label.className="text-2xl font-black text-red-600 leading-tight"; }
-            else if(tsb < -10) { icon.innerText="📈"; label.innerText="Productif"; label.className="text-2xl font-black text-blue-600 leading-tight"; }
-            else if(tsb < 10) { icon.innerText="✅"; label.innerText="Optimal"; label.className="text-2xl font-black text-green-600 leading-tight"; }
-            else { icon.innerText="🚀"; label.innerText="Affûté (Peak)"; label.className="text-2xl font-black text-yellow-500 leading-tight"; }
+            if(tsb < -25) { icon.innerText="🚲"; icon.style.transform="scaleX(-1)"; label.innerText="Repos requis"; label.className="text-2xl font-black text-red-600 leading-tight"; }
+            else if(tsb < -10) { icon.innerText="🚵"; icon.style.transform="scaleX(-1)"; label.innerText="Productif"; label.className="text-2xl font-black text-blue-600 leading-tight"; }
+            else if(tsb < 10) { icon.innerText="🚴"; icon.style.transform="scaleX(-1)"; label.innerText="Optimal"; label.className="text-2xl font-black text-emerald-500 leading-tight"; }
+            else { icon.innerText="🏁"; icon.style.transform="none"; label.innerText="Affûté (Peak)"; label.className="text-2xl font-black text-yellow-500 leading-tight"; }
             updateChartDisplay();
         }
 
