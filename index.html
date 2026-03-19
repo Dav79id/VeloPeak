@@ -192,8 +192,24 @@
     </nav>
 
     <script>
-        // CONFIG
+        // CONFIG & MANIFEST PWA DYNAMIQUE
         const CONFIG = { REDIRECT_URI: window.location.origin + window.location.pathname };
+        
+        const manifestData = {
+            "name": "VeloPeak Pro",
+            "short_name": "VeloPeak",
+            "start_url": ".",
+            "display": "standalone",
+            "background_color": "#0f172a",
+            "theme_color": "#0f172a",
+            "icons": [{
+                "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%233b82f6'><path d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/></svg>",
+                "sizes": "512x512",
+                "type": "image/svg+xml",
+                "purpose": "any maskable"
+            }]
+        };
+        document.getElementById('manifest-link').href = URL.createObjectURL(new Blob([JSON.stringify(manifestData)], {type: 'application/json'}));
 
         // NAVIGATION
         function switchTab(tabId) {
