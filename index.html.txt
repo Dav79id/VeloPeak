@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1e293b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>VeloPeak - Performance & Prédiction</title>
+    
+    <!-- Lien Manifest dynamique pour l'installation PWA -->
+    <link id="manifest-link" rel="manifest" href="">
+
+    <!-- Bibliothèques -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    
+    <style>
+        :root {
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+        }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        ::-webkit-scrollbar { display: none; }
+        .tab-content { display: none; opacity: 0; transform: translateY(10px); transition: all 0.3s ease-out; }
+        .tab-content.active { display: block; opacity: 1; transform: translateY(0); }
+        
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        
+        /* Animation de pulsation pour la synchro */
+        .pulse-sync { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+
+        .btn-active-scale:active { transform: scale(0.96); }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 h-screen w-screen overflow-hidden flex flex-col selection:bg-blue-200">
+
+    <!-- HEADER / STATUS BAR -->
+    <header class="bg-slate-900 text-white shadow-lg z-30 flex-shrink-0 pt-[var(--safe-top)]">
+        <div class="px-5 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <div class="p-1.5 bg-blue-500 rounded-lg shadow-inner">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </div>
+                <h1 class="text-xl font-black tracking-tight italic uppercase">VELOPEAK</h1>
+            </div>
+            <div id="syncIndicator" class="hidden items-center gap-2 text-blue-400 text-xs font-bold pulse-sync">
+                <svg class="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                MAJ...
+            </div>
+        </div>
+    </header>
+
+    <!-- NOTIFICATIONS -->
+    <div id="notificationArea" class="fixed top-20 left-4 right-4 z-50 pointer-events-none"></div>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50 pb-24">
+        
+        <!-- ================= DASHBOARD ================= -->
+        <div id="tab-dashboard" class="tab-content active p-5 space-y-6">
+            
+            <!-- Écran Vide / Initialisation -->
+            <div id="emptyState" class="py-12 flex flex-col items-center text-center">
+                <div class="w-20 h-20 bg-slate-200 rounded-full flex items-center justify-center mb-4">
+                    <svg class="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                </div>
+                <h2 class="text-xl font-bold text-slate-800">Aucune donnée</h2>
+                <p class="text-sm text-slate-500 max-w-xs mx-auto mt-2 mb-6">Connectez votre compte Strava pour générer votre profil de performance biométrique.</p>
+                <button onclick="switchTab('settings')" class="bg-blue-600 text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-blue-200 btn-active-scale transition-transform">Configurer maintenant</button>
+            </div>
+
+            <!-- Dashboard Actif -->
+            <div id="activeState" class="hidden space-y-6">
+                <!-- Statut Card -->
+                <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
+                    <div class="flex items-center gap-4">
+                        <div id="statusIcon" class="text-4xl">🚴</div>
+                        <div>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">État de forme actuel</p>
+                            <h2 id="statusLabel" class="text-2xl font-black text-slate-800">Chargement...</h2>
+                        </div>
+                    </div>
+                    <div id="statusTip" class="mt-4 p-3 bg-slate-50 rounded-xl text-xs text-slate-600 leading-relaxed italic">
+                        Analyse de vos dernières sorties en cours...
+                    </div>
+                </div>
+
+                <!-- Scores Grid -->
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center">
+                        <span class="text-[9px] font-black text-blue-500 uppercase mb-1">Condition</span>
+                        <span id="valCTL" class="text-2xl font-black text-slate-800">--</span>
+                    </div>
+                    <div class="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center">
+                        <span class="text-[9px] font-black text-red-500 uppercase mb-1">Fatigue</span>
+                        <span id="valATL" class="text-2xl font-black text-slate-800">--</span>
+                    </div>
+                    <div class="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center">
+                        <span class="text-[9px] font-black text-yellow-500 uppercase mb-1">Fraîcheur</span>
+                        <span id="valTSB" class="text-2xl font-black text-slate-800">--</span>
+                    </div>
+                </div>
+
+                <!-- Graphe -->
+                <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-sm font-bold text-slate-800 uppercase tracking-tight">Performances & Pic</h3>
+                        <div class="flex bg-slate-100 p-1 rounded-xl">
+                            <button class="range-btn px-3 py-1 text-[10px] font-bold rounded-lg bg-white shadow-sm text-slate-800" data-range="30">1M</button>
+                            <button class="range-btn px-3 py-1 text-[10px] font-bold rounded-lg text-slate-500" data-range="90">3M</button>
+                            <button class="range-btn px-3 py-1 text-[10px] font-bold rounded-lg text-slate-500" data-range="all">ALL</button>
+                        </div>
+                    </div>
+                    <div class="relative h-64 w-full">
+                        <canvas id="fitnessChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= COACH ================= -->
+        <div id="tab-coach" class="tab-content p-5 space-y-6">
+            <h2 class="text-3xl font-black text-slate-900 tracking-tight">Coach</h2>
+            <p class="text-sm text-slate-500 -mt-4">Planification basée sur la récupération.</p>
+
+            <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-5">
+                <div>
+                    <label class="text-xs font-bold text-slate-400 uppercase mb-2 block">Cible de progression</label>
+                    <select id="goalSelector" class="w-full bg-slate-50 border-slate-100 rounded-2xl p-4 border font-bold text-slate-700 appearance-none focus:ring-2 focus:ring-blue-500 outline-none">
+                        <option value="endurance">🚴‍♂️ Endurance Fondamentale (Z2)</option>
+                        <option value="pma">⚡ Seuil & PMA (Intervalles)</option>
+                        <option value="affutage">🚀 Affûtage & Pic de forme</option>
+                        <option value="recup">🧘‍♂️ Récupération Active</option>
+                    </select>
+                </div>
+                <button id="btnCoach" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold shadow-xl btn-active-scale transition-transform">Trouver le jour idéal</button>
+            </div>
+
+            <div id="coachResult" class="hidden"></div>
+        </div>
+
+        <!-- ================= PREDICCTEUR ================= -->
+        <div id="tab-predictor" class="tab-content p-5 space-y-6">
+            <h2 class="text-3xl font-black text-slate-900 tracking-tight">Prédicteur</h2>
+            <div class="flex items-center gap-2 -mt-4">
+                <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                <p id="aiStatus" class="text-xs text-slate-500 font-medium tracking-tight">Moteur IA en attente</p>
+            </div>
+
+            <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-5">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Distance (km)</label>
+                        <input type="number" id="predDist" value="80" class="w-full bg-slate-50 border-slate-100 rounded-xl p-3 border font-black text-xl text-slate-800">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Dénivelé (m)</label>
+                        <input type="number" id="predDeniv" value="1200" class="w-full bg-slate-50 border-slate-100 rounded-xl p-3 border font-black text-xl text-slate-800">
+                    </div>
+                </div>
+                <button id="btnPredict" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-xl btn-active-scale transition-transform">Calculer le chrono</button>
+            </div>
+
+            <div id="predResult" class="hidden"></div>
+        </div>
+
+        <!-- ================= SETTINGS ================= -->
+        <div id="tab-settings" class="tab-content p-5 space-y-8">
+            <h2 class="text-3xl font-black text-slate-900 tracking-tight">Réglages</h2>
+
+            <div class="space-y-4">
+                <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">Source de données</h3>
+                
+                <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
+                    <div class="flex items-center gap-4 mb-5">
+                        <div class="w-12 h-12 rounded-2xl bg-orange-500 flex items-center justify-center text-white shadow-lg shadow-orange-100">
+                            <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-slate-800 leading-tight">Authentification Strava</h4>
+                            <p class="text-[10px] text-slate-500 mt-0.5">Automatique & Sécurisé</p>
+                        </div>
+                    </div>
+                    <button id="btnProStrava" class="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl btn-active-scale transition-transform">Lancer la connexion</button>
+                </div>
+
+                <div class="bg-slate-200/50 p-5 rounded-3xl border border-dashed border-slate-300">
+                    <h4 class="text-xs font-bold text-slate-600 mb-2">Import Manuel (CSV)</h4>
+                    <input type="file" id="csvFileInput" accept=".csv" class="text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-slate-800 file:text-white cursor-pointer"/>
+                </div>
+
+                <button id="btnLoadSample" class="w-full py-3 text-slate-400 font-bold text-xs uppercase tracking-widest">Charger données de démonstration</button>
+            </div>
+
+            <div class="pt-10 border-t border-slate-200 text-center">
+                <p class="text-[10px] text-slate-400 font-medium leading-relaxed">VeloPeak v1.2 Pro Edition<br>Algorithme Banister & IA Predictor v4.0<br>© 2026 Tous droits réservés.</p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- NAVIGATION BAR -->
+    <nav class="glass-nav border-t border-slate-200 fixed bottom-0 w-full flex justify-around items-end pb-[var(--safe-bottom)] z-40">
+        <button class="nav-btn flex-1 py-4 flex flex-col items-center gap-1 text-blue-600 transition-all duration-300 scale-110" data-target="dashboard">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+            <span class="text-[9px] font-black uppercase tracking-tighter">Home</span>
+        </button>
+        <button class="nav-btn flex-1 py-4 flex flex-col items-center gap-1 text-slate-400 transition-all duration-300" data-target="coach">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+            <span class="text-[9px] font-black uppercase tracking-tighter">Coach</span>
+        </button>
+        <button class="nav-btn flex-1 py-4 flex flex-col items-center gap-1 text-slate-400 transition-all duration-300" data-target="predictor">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span class="text-[9px] font-black uppercase tracking-tighter">IA Prep</span>
+        </button>
+        <button class="nav-btn flex-1 py-4 flex flex-col items-center gap-1 text-slate-400 transition-all duration-300" data-target="settings">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+            <span class="text-[9px] font-black uppercase tracking-tighter">Stats</span>
+        </button>
+    </nav>
+
+    <script>
+        const CONFIG = {
+            CLIENT_ID: "", // À remplir avec votre Client ID Strava
+            REDIRECT_URI: window.location.origin + window.location.pathname
+        };
+
+        const manifestData = {
+            "name": "VeloPeak Pro", "short_name": "VeloPeak", "start_url": ".", "display": "standalone",
+            "background_color": "#1e293b", "theme_color": "#1e293b",
+            "icons": [{"src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%233b82f6'><path d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/></svg>", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any maskable"}]
+        };
+        document.getElementById('manifest-link').href = URL.createObjectURL(new Blob([JSON.stringify(manifestData)], {type: 'application/json'}));
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                if(btn.dataset.target === tabId) {
+                    btn.classList.add('text-blue-600', 'scale-110'); btn.classList.remove('text-slate-400');
+                } else {
+                    btn.classList.remove('text-blue-600', 'scale-110'); btn.classList.add('text-slate-400');
+                }
+            });
+        }
+        document.querySelectorAll('.nav-btn').forEach(btn => btn.addEventListener('click', (e) => switchTab(e.currentTarget.dataset.target)));
+
+        function notify(msg, type = 'error') {
+            const area = document.getElementById('notificationArea');
+            const toast = document.createElement('div');
+            toast.className = `p-4 mb-3 rounded-2xl shadow-2xl text-white font-bold text-sm pointer-events-auto transition-all duration-300 flex items-center gap-3 ${type==='error'?'bg-red-500':'bg-green-500'}`;
+            toast.innerHTML = `<span>${type==='error'?'⚠️':'✅'}</span><span>${msg}</span>`;
+            area.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(20px)'; setTimeout(() => toast.remove(), 300); }, 4000);
+        }
+
+        let chartInstance = null;
+        let rideHistory = []; 
+        let globalDailyData = [];
+        let currentChartRange = '30';
+
+        function parseNum(v) { if(!v) return 0; let s = v.toString().replace(',','.'); let n = parseFloat(s); return isNaN(n)?0:n; }
+
+        function processData(activities) {
+            let workoutMap = {}; let minDate = new Date('2099-01-01'); let maxDate = new Date('2000-01-01');
+            rideHistory = []; 
+            const getVal = (o, kws) => { for(let k in o) { for(let kw of kws) { if(k.includes(kw)) return o[k]; } } return null; };
+
+            let parsed = [];
+            activities.forEach(act => {
+                let n = {}; for(let k in act) { if(k) n[k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"")] = act[k]; }
+                let type = (getVal(n, ['type']) || "").toLowerCase();
+                if(type && !type.includes('ride') && !type.includes('velo') && !type.includes('cycl')) return;
+                
+                let dStr = getVal(n, ['date']); if(!dStr) return;
+                let d = new Date(dStr);
+                if(isNaN(d.getTime())) {
+                    let m = dStr.match(/\b(\d{1,4})[/\.\-](\d{1,2})[/\.\-](\d{1,4})\b/);
+                    if(m) {
+                        let p1=parseInt(m[1]), p2=parseInt(m[2]), p3=parseInt(m[3]);
+                        if(p1>1000) d=new Date(p1, p2-1, p3); else d=new Date(p3, p2-1, p1);
+                    }
+                }
+                if(isNaN(d.getTime())) return;
+                n._d = d; parsed.push(n);
+            });
+
+            parsed.sort((a,b)=>a._d - b._d);
+            parsed.forEach(n => {
+                let dist = parseNum(getVal(n,['distance']));
+                let ele = parseNum(getVal(n,['elevation','denivele']));
+                let hr = parseNum(getVal(n,['heartrate','fcmoyenne']));
+                let time = parseNum(getVal(n,['movingtime','temps']));
+                if(dist>1000 && time>0 && (dist/time)<30) dist/=1000;
+                let tss = parseFloat(getVal(n,['effort','tss','suffer']));
+                if(isNaN(tss) || tss <= 0) tss = (dist*1.4) + (ele*0.04);
+                
+                let dk = n._d.toISOString().split('T')[0];
+                workoutMap[dk] = (workoutMap[dk]||0)+tss;
+                if(n._d < minDate) minDate = n._d; if(n._d > maxDate) maxDate = n._d;
+                if(dist>5 && time>0) rideHistory.push({date:dk, dist, ele, hr, speed:dist/(time/3600), ratio:ele/dist});
+            });
+
+            let daily = []; let ctl = 0, atl = 0;
+            let now = new Date(); now.setHours(0,0,0,0);
+            if(maxDate < now) maxDate = now;
+            let limit = new Date(maxDate); limit.setDate(limit.getDate()+14);
+            let cur = new Date(minDate);
+            while(cur <= limit) {
+                let dk = cur.toISOString().split('T')[0];
+                let tss = workoutMap[dk]||0;
+                ctl += (tss - ctl)/42; atl += (tss - atl)/7;
+                daily.push({date:dk, ctl, atl, tsb:ctl-atl, isFuture:cur > now});
+                rideHistory.filter(r=>r.date===dk).forEach(r=>{r.ctl=ctl; r.tsb=ctl-atl;});
+                cur.setDate(cur.getDate()+1);
+            }
+            return daily;
+        }
+
+        function updateUI(daily) {
+            if(!daily.length) return;
+            globalDailyData = daily;
+            document.getElementById('emptyState').classList.add('hidden');
+            document.getElementById('activeState').classList.remove('hidden');
+
+            const nowData = daily.filter(d=>!d.isFuture).pop();
+            const tsb = Math.round(nowData.tsb);
+            document.getElementById('valCTL').innerText = Math.round(nowData.ctl);
+            document.getElementById('valATL').innerText = Math.round(nowData.atl);
+            document.getElementById('valTSB').innerText = (tsb>0?'+':'')+tsb;
+
+            const icon = document.getElementById('statusIcon');
+            const label = document.getElementById('statusLabel');
+            const tip = document.getElementById('statusTip');
+            
+            if(tsb < -25) { icon.innerText="🛋️"; label.innerText="Surentraîné"; tip.innerText="Alerte : Risque de blessure élevé. Le repos est requis aujourd'hui."; }
+            else if(tsb < -10) { icon.innerText="📈"; label.innerText="Productif"; tip.innerText="Votre fatigue est élevée mais c'est ici que vous progressez."; }
+            else if(tsb < 10) { icon.innerText="✅"; label.innerText="Optimal"; tip.innerText="Équilibre parfait. Votre corps assimile bien les charges."; }
+            else { icon.innerText="🚀"; label.innerText="Affûté"; tip.innerText="Vous êtes au sommet de votre fraîcheur. Moment idéal pour performer."; }
+
+            updateChartDisplay();
+        }
+
+        function updateChartDisplay() {
+            const actual = globalDailyData.filter(d=>!d.isFuture);
+            let disp = globalDailyData;
+            if(currentChartRange !== 'all') disp = globalDailyData.slice(Math.max(0, actual.length - parseInt(currentChartRange)));
+            const relToday = disp.filter(d=>!d.isFuture).length - 1;
+            const fmt = (s) => { let p=s.split('-'); return `${p[2]}/${p[1]}`; };
+            
+            const ctx = document.getElementById('fitnessChart').getContext('2d');
+            if(chartInstance) chartInstance.destroy();
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: disp.map(d=>d.isFuture?fmt(d.date)+'+':fmt(d.date)),
+                    datasets: [
+                        { label:'CTL', data:disp.map(d=>d.ctl), borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,0.1)', fill:true, pointRadius:0, tension:0.4, segment:{borderDash:c=>c.p0DataIndex>=relToday?[5,5]:undefined} },
+                        { label:'ATL', data:disp.map(d=>d.atl), borderColor:'#ef4444', pointRadius:0, tension:0.4, segment:{borderDash:c=>c.p0DataIndex>=relToday?[5,5]:undefined} },
+                        { label:'TSB', data:disp.map(d=>d.tsb), borderColor:'#eab308', pointRadius:0, tension:0.4, segment:{borderDash:c=>c.p0DataIndex>=relToday?[5,5]:undefined} }
+                    ]
+                },
+                options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{maxTicksLimit:5, font:{size:9}}}, y:{ticks:{font:{size:9}}} } }
+            });
+        }
+
+        document.getElementById('btnProStrava').addEventListener('click', () => {
+            const authUrl = `https://www.strava.com/oauth/authorize?client_id=${CONFIG.CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(CONFIG.REDIRECT_URI)}&approval_prompt=force&scope=activity:read_all`;
+            notify("Redirection vers Strava...", "success");
+            window.location.href = authUrl;
+        });
+
+        document.getElementById('btnPredict').addEventListener('click', () => {
+            if(!rideHistory.length) return notify("Données requises.");
+            const d=parseFloat(document.getElementById('predDist').value);
+            const e=parseFloat(document.getElementById('predDeniv').value);
+            const r=e/d; const now=globalDailyData.filter(d=>!d.isFuture).pop();
+            let scored = rideHistory.map(h => ({...h, s:(Math.abs(h.ratio-r)*5) + (Math.abs(h.dist-d)/d*10) })).sort((a,b)=>a.s-b.s).slice(0,5);
+            let spd = 0;
+            scored.forEach(h => {
+                let mult = 1 + ((now.ctl-h.ctl)/300) + ((now.tsb-h.tsb)/400);
+                spd += h.speed * Math.max(0.85, Math.min(1.15, mult));
+            });
+            spd /= scored.length;
+            const t = d/spd; const hrs=Math.floor(t), mins=Math.round((t-hrs)*60);
+            const res = document.getElementById('predResult');
+            res.innerHTML = `<div class="bg-blue-600 text-white p-6 rounded-3xl shadow-xl text-center"><p class="text-[10px] font-black uppercase opacity-70 mb-1">Chrono Estimé IA</p><div class="text-4xl font-black mb-1">${hrs}h ${mins.toString().padStart(2,'0')}m</div><p class="text-xs opacity-80">Vitesse moy. ajustée : ${spd.toFixed(1)} km/h</p></div>`;
+            res.classList.remove('hidden');
+        });
+
+        document.getElementById('btnCoach').addEventListener('click', () => {
+            if(!globalDailyData.length) return notify("Données requises.");
+            const goal = document.getElementById('goalSelector').value;
+            const nowIdx = globalDailyData.filter(d=>!d.isFuture).length - 1;
+            let targetTsb = goal==='pma'?-5 : (goal==='affutage'?5 : -15);
+            let day = globalDailyData.slice(nowIdx).find(d=>d.tsb >= targetTsb) || globalDailyData.pop();
+            let diff = globalDailyData.indexOf(day) - nowIdx;
+            const res = document.getElementById('coachResult');
+            res.innerHTML = `<div class="bg-slate-900 text-white p-6 rounded-3xl shadow-xl"><div class="flex justify-between items-center mb-4"><div><p class="text-[10px] font-bold opacity-50 uppercase">Date idéale</p><h4 class="text-2xl font-black">${diff===0?'Aujourd\'hui':(diff===1?'Demain':'Le '+day.date.split('-')[2]+'/'+day.date.split('-')[1])}</h4></div><div class="bg-white/10 px-3 py-1 rounded-lg text-xs font-bold">TSB ${Math.round(day.tsb)}</div></div><p class="text-xs leading-relaxed opacity-70">Séance recommandée à cette date pour une adaptation maximale.</p></div>`;
+            res.classList.remove('hidden');
+        });
+
+        document.getElementById('btnLoadSample').addEventListener('click', () => {
+            const data = []; let d = new Date(); d.setDate(d.getDate()-180);
+            for(let i=0; i<180; i++) {
+                let dow=d.getDay(), tss=0;
+                if(dow===0) tss=120; else if(dow===3) tss=80; else if(dow===6) tss=60;
+                if(tss>0 && Math.random()>0.2) data.push({date:d.toISOString().split('T')[0], tss, distance:tss*0.7, elevation:tss*10, type:'Ride'});
+                d.setDate(d.getDate()+1);
+            }
+            updateUI(processData(data));
+            notify("Mode Démo activé", "success");
+        });
+
+        document.getElementById('csvFileInput').addEventListener('change', (e) => {
+            Papa.parse(e.target.files[0], { header:true, complete: r => updateUI(processData(r.data)) });
+        });
+    </script>
+</body>
+</html>
